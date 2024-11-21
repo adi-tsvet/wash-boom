@@ -1,31 +1,51 @@
-const Database = require('better-sqlite3');
-const db = new Database('./database.db');
+import dbConnect from '../../../../lib/mongodb';
+import User from '../../../models/User';
+import Washroom from '../../../models/Washroom';
+import Activity from '../../../models/Activity';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   const { userId } = req.query;
 
   try {
+    await dbConnect();
+
     if (!userId) {
       return res.status(400).json({ message: 'User ID is required' });
     }
 
-    // Retrieve assigned washrooms with current occupancy status and occupant's name
-    const assignedWashrooms = db.prepare(`
-      SELECT 
-        w.id, 
-        w.name, 
-        w.status,
-        CASE 
-          WHEN a.status = 'occupied' THEN u2.username 
-          ELSE NULL 
-        END AS occupied_by -- Use name instead of ID
-      FROM washrooms w
-      JOIN assigned_washrooms aw ON w.id = aw.washroom_id
-      LEFT JOIN activities a ON w.id = a.washroom_id AND a.end_time IS NULL -- only current active records
-      LEFT JOIN users u2 ON a.occupied_by = u2.id -- get the name of the occupant
-      WHERE aw.user_id = ?
-    `).all(userId);
-    console.log(assignedWashrooms)
+    // Retrieve washrooms assigned to the user, along with current activity and occupancy status
+    const user = await User.findById(userId).populate({
+      path: 'assignedWashrooms',
+      model: 'Washroom',
+      populate: {
+        path: 'activities',
+        model: 'Activity',
+        match: { endTime: { $eq: null } }, // Only fetch active (ongoing) activities
+        select: 'status occupiedBy', // Select occupancy status and occupant
+        populate: {
+          path: 'occupiedBy',
+          model: 'User',
+          select: 'username' // Select the occupant's username
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Format assigned washrooms with occupancy details
+    const assignedWashrooms = user.assignedWashrooms.map((washroom) => {
+      const activeActivity = washroom.activities?.find(activity => !activity.endTime); // Ensure only active activity
+      console.log("Active Activity:", activeActivity); // For debugging
+      return {
+        id: washroom._id.toString(),
+        name: washroom.name,
+        status: washroom.status,
+        occupied_by: activeActivity?.occupiedBy?.username || null
+      };
+    });
+
     res.status(200).json(assignedWashrooms);
   } catch (error) {
     console.error('Error fetching assigned washrooms:', error);

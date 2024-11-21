@@ -1,12 +1,14 @@
+// next-auth.d.ts
+
 import 'next-auth';
 
 declare module 'next-auth' {
   interface User {
-    id: number; // Ensure 'id' is a number
+    id: string;
     username: string;
-    admin: True | False;
+    adminFlag: boolean;
     name: string;
-    dateJoined: string;
+    dateJoined: Date;
   }
 
   interface Session {
@@ -14,6 +16,10 @@ declare module 'next-auth' {
   }
 
   interface JWT {
-    id: number; // Add 'id' to the JWT type
+    id: string;
+    username: string;
+    adminFlag: boolean;
+    name: string;
+    dateJoined: Date;
   }
 }

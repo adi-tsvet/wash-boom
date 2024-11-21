@@ -21,8 +21,9 @@ export default function LoginPage() {
       // Fetch session to check user role
       const sessionRes = await fetch('/api/auth/session');
       const sessionData = await sessionRes.json();
+      console.log("Login Page : " + sessionData?.user?.id);
 
-      if (sessionData?.user?.admin) {
+      if (sessionData?.user?.adminFlag) {
         // If the user is an admin, redirect to the admin dashboard
         router.push('/admin/dashboard');
       } else {

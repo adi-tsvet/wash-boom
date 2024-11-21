@@ -4,7 +4,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 type Washroom = {
-  id: number;
+  _id: string;
   name: string;
   status: 'occupied' | 'vacant';
   occupied_by: string | null;
@@ -24,19 +24,18 @@ export default function ActivityPage() {
       fetchUserAssignedWashrooms(session.user.id);
     }
   }, [status, session, router]);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (session?.user?.id) {
-        fetchUserAssignedWashrooms(session.user.id);
-      }
-    }, 5000); // Fetch data every 5 seconds
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     if (session?.user?.id) {
+  //       fetchUserAssignedWashrooms(session.user.id);
+  //     }
+  //   }, 5000); // Fetch data every 5 seconds
 
-    return () => clearInterval(interval); // Cleanup interval on unmount
-  }, [session]);
+  //   return () => clearInterval(interval); // Cleanup interval on unmount
+  // }, [session]);
 
  
-
-  const fetchUserAssignedWashrooms = async (userId: number) => {
+  const fetchUserAssignedWashrooms = async (userId: string) => {
     try {
       const res = await fetch(`/api/user/activity?userId=${userId}`);
       if (!res.ok) throw new Error('Failed to fetch assigned washrooms');
@@ -49,9 +48,7 @@ export default function ActivityPage() {
   };
 
   
-
-
-  const handleOccupy = async (washroomId: number) => {
+  const handleOccupy = async (washroomId: string) => {
     try {
       const userId = session?.user?.id;
       if (!userId) throw new Error('User ID not found in session');
@@ -69,7 +66,7 @@ export default function ActivityPage() {
     }
   };
 
-  const handleVacate = async (washroomId: number) => {
+  const handleVacate = async (washroomId: string) => {
     try {
       const userId = session?.user?.id;
       if (!userId) throw new Error('User ID not found in session');
@@ -87,6 +84,7 @@ export default function ActivityPage() {
     }
   };
   if (status === 'loading') return <p>Loading...</p>;
+  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
       <div className="w-full flex justify-between mb-4">
@@ -98,11 +96,11 @@ export default function ActivityPage() {
 
       <ul className="w-full max-w-md">
         {washrooms.map((washroom) => (
-          <li key={washroom.id} className="flex flex-col p-4 mb-4 bg-white shadow rounded">
+          <li key={washroom._id} className="flex flex-col p-4 mb-4 bg-white shadow rounded">
             <span className="font-medium">
               {washroom.name} - {washroom.status}
               {washroom.status === 'occupied' &&
-                ` (Occupied by: ${washroom.occupied_by === session?.user?.username ? 'You' : washroom.occupied_by || 'N/A'})`}
+                ` (Occupied by: ${washroom.occupied_by === session?.user?.id ? 'You' : washroom.occupied_by || 'N/A'})`}
             </span>
 
             {washroom.status === 'vacant' ? (
@@ -116,16 +114,16 @@ export default function ActivityPage() {
                   <option value="poop">Poop</option>
                 </select>
                 <button
-                  onClick={() => handleOccupy(washroom.id)}
+                  onClick={() => handleOccupy(washroom._id)}
                   className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
                 >
                   Occupy
                 </button>
               </div>
             ) : (
-              washroom.occupied_by === session?.user?.username && (
+              washroom.occupied_by === session?.user?.id && (
                 <button
-                  onClick={() => handleVacate(washroom.id)}
+                  onClick={() => handleVacate(washroom._id)}
                   className="mt-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
                 >
                   Vacate

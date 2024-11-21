@@ -1,10 +1,10 @@
+// pages/api/auth/[...nextauth].js
 
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import sqlite3 from 'better-sqlite3';
-
-const db = new sqlite3('./database.db');
+import dbConnect from '../../../../lib/mongodb';
+import User from '../../../models/User';
 
 export default NextAuth({
   session: {
@@ -22,60 +22,70 @@ export default NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
+          console.error('Username or password missing.');
           throw new Error('Missing username or password');
         }
 
-        const { username, password } = credentials;
+        // Connect to the database
+        await dbConnect();
 
-        // Fetch user from the database
-        const user = db
-          .prepare('SELECT id, username, password, admin_flag, name, date_joined FROM users WHERE username = ?')
-          .get(username);
+        try {
+          // Find user in MongoDB
+          const user = await User.findOne({ username: credentials.username });
+          if (!user) {
+            console.error('User not found.');
+            throw new Error('No user found');
+          }
 
-        if (!user) throw new Error('No user found');
+          // Verify password
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          if (!isValid) {
+            console.error('Invalid password.');
+            throw new Error('Invalid credentials');
+          }
 
-        // Check if the provided password matches the hashed password in the database
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) throw new Error('Invalid credentials');
-
-        // Return essential user info, adding any additional data we want in the JWT and session
-        return { 
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          admin: user.admin_flag,
-          dateJoined: user.date_joined
-        };
+          console.log(user._id.toString())
+          // User authorized
+          return {
+            id: user._id.toString(),
+            username: user.username,
+            name: user.name,
+            adminFlag: user.adminFlag,
+            dateJoined: user.dateJoined,
+          };
+        } catch (error) {
+          console.error('Authorization error:', error);
+          throw new Error('Authorization failed');
+        }
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Add user information to the token on initial login
+      // Explicitly type token properties
       if (user) {
-        token.id = user.id;
-        token.username = user.username;
-        token.admin = user.admin;
-        token.name = user.name;
-        token.dateJoined = user.dateJoined;
+        token.id = user.id as string;
+        token.username = user.username as string;
+        token.adminFlag = user.adminFlag as boolean;
+        token.name = user.name as string;
+        token.dateJoined = user.dateJoined as Date;
       }
       return token;
     },
     async session({ session, token }) {
       // Add the token data to the session
       session.user = {
-        ...session.user,
-        id: token.id as number,
+        id: token.id as string,
         username: token.username as string,
+        adminFlag: token.adminFlag as boolean,
         name: token.name as string,
-        admin: token.admin as boolean,
-        dateJoined: token.dateJoined as string,
+        dateJoined: token.dateJoined as Date,
       };
       return session;
     },
   },
   pages: {
     signIn: '/login',
-    signOut:'/login',
+    signOut: '/login',
   },
 });

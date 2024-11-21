@@ -1,29 +1,32 @@
-const Database = require('better-sqlite3');
-const db = new Database('./database.db');
+import dbConnect from '../../../../lib/mongodb';
+import User from '../../../models/User';
+import Washroom from '../../../models/Washroom';
+import Activity from '../../../models/Activity';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   const { userId, washroomId } = req.body;
 
   try {
-    // Check if the washroom is occupied by this user
-    const activity = db.prepare(`
-      SELECT * FROM activities 
-      WHERE washroom_id = ? AND occupied_by = ? AND end_time IS NULL
-    `).get(washroomId, userId);
+    await dbConnect();
 
-    if (!activity) {
+    // Check if the washroom is currently occupied by this user
+    const activeActivity = await Activity.findOne({
+      washroom: washroomId,
+      occupiedBy: userId,
+      endTime: null,  // Only find ongoing activities
+    });
+
+    if (!activeActivity) {
       return res.status(400).json({ message: 'No active occupation by this user found' });
     }
 
-    // Set the washroom status to vacant and update the activity end time
-    db.prepare(`
-      UPDATE washrooms SET status = 'vacant' WHERE id = ?
-    `).run(washroomId);
+    // Update the washroom's status to 'vacant'
+    await Washroom.findByIdAndUpdate(washroomId, { status: 'vacant' });
 
-    db.prepare(`
-      UPDATE activities SET status = 'vacant', end_time = datetime('now')
-      WHERE id = ?
-    `).run(activity.id);
+    // Update the activity's status to 'vacant' and set the end time
+    activeActivity.status = 'vacant';
+    activeActivity.endTime = new Date();
+    await activeActivity.save();
 
     res.status(200).json({ message: 'Washroom vacated successfully' });
   } catch (error) {

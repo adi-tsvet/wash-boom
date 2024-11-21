@@ -1,14 +1,20 @@
-const Database = require('better-sqlite3');
-const db = new Database('./database.db');
+import dbConnect from '../../../../lib/mongodb';
+import Washroom from '../../../models/Washroom';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
+  await dbConnect();
+
   const { name } = req.body;
 
   try {
-    db.prepare('INSERT INTO washrooms (name, status) VALUES (?, ?)').run(name, 'vacant');
+    // Create a new washroom with a default status of 'vacant'
+    const newWashroom = new Washroom({ name, status: 'vacant' });
+    await newWashroom.save();
+
     res.status(201).json({ message: 'Washroom created successfully' });
   } catch (error) {
     console.error('Error creating washroom:', error);
-    res.status(400).json({ message: 'Error creating washroom' });
+    // Handle duplicate name error or other issues
+    res.status(400).json({ message: 'Error creating washroom', error: error.message });
   }
 }
